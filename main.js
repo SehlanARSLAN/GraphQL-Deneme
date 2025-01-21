@@ -1,27 +1,8 @@
 const { ApolloServer, gql } = require("apollo-server-express");
+const { PubSub } = require('graphql-subscriptions');
+
 const express = require("express");
-
-// Örnek veri seti
-const users = [
-  { id: 1, username: "Ali" },
-  { id: 2, username: "Veli" },
-];
-
-const locations = [
-  { id: 1, name: "Istanbul" },
-  { id: 2, name: "Ankara" },
-];
-
-const events = [
-  { id: 1, title: "Concert", userId: 1, locationId: 1 },
-  { id: 2, title: "Workshop", userId: 2, locationId: 2 },
-];
-
-const participants = [
-  { id: 1, username: "Mehmet", eventId: 1 },
-  { id: 2, username: "Ayşe", eventId: 1 },
-  { id: 3, username: "Fatma", eventId: 2 },
-];
+const pubsub = new PubSub();
 
 // GraphQL Şeması
 typeDefs = gql`
@@ -64,24 +45,37 @@ typeDefs = gql`
     addUser(username: String!): User
     updateUser(id: ID!, username: String!): User
     deleteUser(id: ID!): User
-    deleteAllUsers: [User]
+    deleteAllUsers: [User!]
 
     addEvent(title: String!, userId: ID!, locationId: ID!): Event
     updateEvent(id: ID!, title: String!): Event
     deleteEvent(id: ID!): Event
-    deleteAllEvents: [Event]
+    deleteAllEvents: [Event!]
 
     addLocation(name: String!): Location
     updateLocation(id: ID!, name: String!): Location
     deleteLocation(id: ID!): Location
-    deleteAllLocations: [Location]
+    deleteAllLocations: [Location!]
 
     addParticipant(username: String!, eventId: ID!): Participant
     updateParticipant(id: ID!, username: String!): Participant
     deleteParticipant(id: ID!): Participant
-    deleteAllParticipants: [Participant]
+    deleteAllParticipants: [Participant!]
+  }
+  
+  type Subscription {
+    userCreated: User
+    userDeleted: User
+    eventCreated: Event
+    eventDeleted: Event
+    participantAdded: Participant
+    participantDeleted: Participant
   }
 `;
+
+const users = [];
+const events = [];
+const participants = [];
 
 // Resolver'lar
 const resolvers = {
@@ -90,17 +84,18 @@ const resolvers = {
     user: (_, { id }) => users.find((user) => user.id == id),
     events: () => events,
     event: (_, { id }) => events.find((event) => event.id == id),
-    locations: () => locations,
-    location: (_, { id }) => locations.find((loc) => loc.id == id),
+    locations: () => [],
+    location: (_, { id }) => null,
     participants: () => participants,
     participant: (_, { id }) => participants.find((p) => p.id == id),
   },
 
   Mutation: {
     addUser: (_, { username }) => {
-      const newUser = { id: users.length + 1, username };
-      users.push(newUser);
-      return newUser;
+      const user = { id: Date.now().toString(), username };
+      users.push(user);
+      pubsub.publish('USER_CREATED', { userCreated: user });
+      return user;
     },
     updateUser: (_, { id, username }) => {
       const user = users.find((u) => u.id == id);
@@ -109,18 +104,22 @@ const resolvers = {
       return user;
     },
     deleteUser: (_, { id }) => {
-      users = users.filter((u) => u.id != id);
-      return { id, username: "Deleted" };
+      const index = users.findIndex(user => user.id === id);
+      if (index === -1) return null;
+      const deletedUser = users.splice(index, 1)[0];
+      pubsub.publish('USER_DELETED', { userDeleted: deletedUser });
+      return deletedUser;
     },
     deleteAllUsers: () => {
       const deleted = [...users];
-      users = [];
+      users.length = 0;
       return deleted;
     },
     addEvent: (_, { title, userId, locationId }) => {
-      const newEvent = { id: events.length + 1, title, userId, locationId };
-      events.push(newEvent);
-      return newEvent;
+      const event = { id: Date.now().toString(), title, user: { id: userId, username: "User" }, location: { id: locationId, name: "Location" }, participants: [] };
+      events.push(event);
+      pubsub.publish('EVENT_CREATED', { eventCreated: event });
+      return event;
     },
     updateEvent: (_, { id, title }) => {
       const event = events.find((e) => e.id == id);
@@ -129,12 +128,15 @@ const resolvers = {
       return event;
     },
     deleteEvent: (_, { id }) => {
-      events = events.filter((e) => e.id != id);
-      return { id, title: "Deleted" };
+      const index = events.findIndex(event => event.id === id);
+      if (index === -1) return null;
+      const deletedEvent = events.splice(index, 1)[0];
+      pubsub.publish('EVENT_DELETED', { eventDeleted: deletedEvent });
+      return deletedEvent;
     },
     deleteAllEvents: () => {
       const deleted = [...events];
-      events = [];
+      events.length = 0;
       return deleted;
     },
     addLocation: (_, { name }) => {
@@ -157,10 +159,11 @@ const resolvers = {
       locations = [];
       return deleted;
     },
-    addParticipant: (_, { username, eventId }) => {
-      const newParticipant = { id: participants.length + 1, username, eventId };
-      participants.push(newParticipant);
-      return newParticipant;
+    addParticipant: (_, { eventId, username }) => {
+      const participant = { id: Date.now().toString(), username };
+      participants.push(participant);
+      pubsub.publish('PARTICIPANT_ADDED', { participantAdded: participant });
+      return participant;
     },
     updateParticipant: (_, { id, username }) => {
       const participant = participants.find((p) => p.id == id);
@@ -169,12 +172,15 @@ const resolvers = {
       return participant;
     },
     deleteParticipant: (_, { id }) => {
-      participants = participants.filter((p) => p.id != id);
-      return { id, username: "Deleted" };
+      const index = participants.findIndex(p => p.id === id);
+      if (index === -1) return null;
+      const deletedParticipant = participants.splice(index, 1)[0];
+      pubsub.publish('PARTICIPANT_DELETED', { participantDeleted: deletedParticipant });
+      return deletedParticipant;
     },
     deleteAllParticipants: () => {
       const deleted = [...participants];
-      participants = [];
+      participants.length = 0;
       return deleted;
     },
   },
