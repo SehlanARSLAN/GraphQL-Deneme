@@ -1,11 +1,15 @@
-const { ApolloServer, gql } = require("apollo-server-express");
-const { PubSub } = require('graphql-subscriptions');
+import express from "express";
+import { ApolloServer, gql } from "apollo-server-express";
+import { PubSub } from "graphql-subscriptions";
 
-const express = require("express");
+import { users } from "./users.js";
+import { locations } from "./locations.js";
+import { predefinedEvents } from "./events.js";
+
 const pubsub = new PubSub();
 
 // GraphQL Şeması
-typeDefs = gql`
+const typeDefs = gql`
   type User {
     id: ID!
     username: String!
@@ -15,6 +19,8 @@ typeDefs = gql`
   type Event {
     id: ID!
     title: String!
+    description: String!
+    time: String!
     user: User!
     location: Location!
     participants: [Participant]
@@ -47,7 +53,13 @@ typeDefs = gql`
     deleteUser(id: ID!): User
     deleteAllUsers: [User!]
 
-    addEvent(title: String!, userId: ID!, locationId: ID!): Event
+    addEvent(
+      title: String!
+      userId: ID!
+      locationId: ID!
+      description: String!
+      time: String!
+    ): Event
     updateEvent(id: ID!, title: String!): Event
     deleteEvent(id: ID!): Event
     deleteAllEvents: [Event!]
@@ -62,7 +74,7 @@ typeDefs = gql`
     deleteParticipant(id: ID!): Participant
     deleteAllParticipants: [Participant!]
   }
-  
+
   type Subscription {
     userCreated: User
     userDeleted: User
@@ -73,8 +85,7 @@ typeDefs = gql`
   }
 `;
 
-const users = [];
-const events = [];
+const events = [...predefinedEvents];
 const participants = [];
 
 // Resolver'lar
@@ -84,17 +95,18 @@ const resolvers = {
     user: (_, { id }) => users.find((user) => user.id == id),
     events: () => events,
     event: (_, { id }) => events.find((event) => event.id == id),
-    locations: () => [],
-    location: (_, { id }) => null,
+    locations: () => locations,
+    location: (_, { id }) => locations.find((loc) => loc.id == id),
     participants: () => participants,
     participant: (_, { id }) => participants.find((p) => p.id == id),
   },
 
   Mutation: {
     addUser: (_, { username }) => {
-      const user = { id: Date.now().toString(), username };
+      const newId = (users.length + 1).toString();
+      const user = { id: newId, username };
       users.push(user);
-      pubsub.publish('USER_CREATED', { userCreated: user });
+      pubsub.publish("USER_CREATED", { userCreated: user });
       return user;
     },
     updateUser: (_, { id, username }) => {
@@ -104,10 +116,10 @@ const resolvers = {
       return user;
     },
     deleteUser: (_, { id }) => {
-      const index = users.findIndex(user => user.id === id);
+      const index = users.findIndex((user) => user.id === id);
       if (index === -1) return null;
       const deletedUser = users.splice(index, 1)[0];
-      pubsub.publish('USER_DELETED', { userDeleted: deletedUser });
+      pubsub.publish("USER_DELETED", { userDeleted: deletedUser });
       return deletedUser;
     },
     deleteAllUsers: () => {
@@ -115,10 +127,27 @@ const resolvers = {
       users.length = 0;
       return deleted;
     },
-    addEvent: (_, { title, userId, locationId }) => {
-      const event = { id: Date.now().toString(), title, user: { id: userId, username: "User" }, location: { id: locationId, name: "Location" }, participants: [] };
+    addEvent: (_, { title, userId, locationId, description, time }) => {
+      const id = Date.now().toString();
+      if (!id) throw new Error("ID cannot be null or undefined");
+
+      const user = users.find((u) => u.id == userId);
+      if (!user) throw new Error("User not found");
+
+      const location = locations.find((l) => l.id == locationId);
+      if (!location) throw new Error("Location not found");
+
+      const event = {
+        id,
+        title,
+        description,
+        time,
+        user: user,
+        location: { id: locationId, name: location.name },
+        participants: [],
+      };
       events.push(event);
-      pubsub.publish('EVENT_CREATED', { eventCreated: event });
+      pubsub.publish("EVENT_CREATED", { eventCreated: event });
       return event;
     },
     updateEvent: (_, { id, title }) => {
@@ -128,10 +157,10 @@ const resolvers = {
       return event;
     },
     deleteEvent: (_, { id }) => {
-      const index = events.findIndex(event => event.id === id);
+      const index = events.findIndex((event) => event.id === id);
       if (index === -1) return null;
       const deletedEvent = events.splice(index, 1)[0];
-      pubsub.publish('EVENT_DELETED', { eventDeleted: deletedEvent });
+      pubsub.publish("EVENT_DELETED", { eventDeleted: deletedEvent });
       return deletedEvent;
     },
     deleteAllEvents: () => {
@@ -140,7 +169,8 @@ const resolvers = {
       return deleted;
     },
     addLocation: (_, { name }) => {
-      const newLocation = { id: locations.length + 1, name };
+      const newId = (locations.length + 1).toString();
+      const newLocation = { id: newId, name };
       locations.push(newLocation);
       return newLocation;
     },
@@ -162,7 +192,7 @@ const resolvers = {
     addParticipant: (_, { eventId, username }) => {
       const participant = { id: Date.now().toString(), username };
       participants.push(participant);
-      pubsub.publish('PARTICIPANT_ADDED', { participantAdded: participant });
+      pubsub.publish("PARTICIPANT_ADDED", { participantAdded: participant });
       return participant;
     },
     updateParticipant: (_, { id, username }) => {
@@ -172,10 +202,12 @@ const resolvers = {
       return participant;
     },
     deleteParticipant: (_, { id }) => {
-      const index = participants.findIndex(p => p.id === id);
+      const index = participants.findIndex((p) => p.id === id);
       if (index === -1) return null;
       const deletedParticipant = participants.splice(index, 1)[0];
-      pubsub.publish('PARTICIPANT_DELETED', { participantDeleted: deletedParticipant });
+      pubsub.publish("PARTICIPANT_DELETED", {
+        participantDeleted: deletedParticipant,
+      });
       return deletedParticipant;
     },
     deleteAllParticipants: () => {
@@ -194,9 +226,7 @@ async function startServer() {
   server.applyMiddleware({ app });
 
   app.listen(4000, () => {
-    console.log(
-      `🚀 Server ready at http://localhost:4000${server.graphqlPath}`
-    );
+    console.log(`🚀 Server ready at http://localhost:4000/graphql`);
   });
 }
 

@@ -1,0 +1,42 @@
+.eventList{
+    width: 100%;
+}
+.eventList h1{
+    margin: 10px 0;
+}
+.eventList-ul{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    list-style: none;
+}
+.eventItem{
+    width: 50%;
+    border: 1px solid black;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 5px;
+}
+.eventInfo{
+    position: relative;
+    padding: 10px;
+}
+.eventTitle{
+    display: flex;
+    align-items: flex-start;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+.eventDescription{
+    display: flex;
+    align-items: flex-start;
+    color: rgba(0, 0, 0, 0.562);
+}
+.eventTime{
+    position: absolute;
+    right: 0;
+    top: 0;
+}

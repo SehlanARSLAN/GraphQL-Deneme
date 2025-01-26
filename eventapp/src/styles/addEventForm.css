@@ -1,0 +1,60 @@
+.addEventForm {
+    margin-top: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.addEventForm-title {
+    font-size: 30px;
+    margin-bottom: 10px;
+}
+
+.addEventForm-form {
+    background-color: gainsboro;
+    width: 30%;
+    padding: 30px;
+}
+.eventCreateBttn{
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 15px;
+    outline: none;
+    background-color: #005eff ;
+    cursor: pointer;
+    border: 1px solid;
+    color: white;
+    float: left;
+}
+.addEventForm-Input{
+    width: 100%;
+    margin-bottom: 10px;
+}
+.addEventForm-Input label{
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 5px;
+}
+.addEventForm-Input input{
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    outline: none;
+    border: 1px solid;
+}
+.addEventForm-Input select{
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    outline: none;
+    border: 1px solid;
+}
+.addEventForm-Input textarea{
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    resize: none;
+    outline: none;
+}
